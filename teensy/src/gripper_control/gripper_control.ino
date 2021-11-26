@@ -9,6 +9,10 @@ const uint8_t DXL_IDL = 1;
 const uint8_t DXL_IDR = 2;
 const float DXL_PROTOCOL_VERSION = 1.0;
 
+const byte numChars = 2000;
+char receivedChars[numChars];   // an array to store the received data
+boolean newData = false;
+
 /*Dynamixel Library*/
 int k=0;
 int grip_open[2]={450,574};
@@ -19,6 +23,8 @@ int comodin2[2]={542,482};
 int comodin3[2]={552,472};
 int comodin4[2]={562,462};
 int comodin5[2]={572,452};
+
+JSONVar GLOBAL_MESSAGE; 
 
 unsigned long ax_bps;
 
@@ -104,6 +110,10 @@ bool set_setting(JSONVar gripper_command){
      }
    ]
    */
+  int command[2]={gripper_command[0]["position"], gripper_command[1]["position"]};//{512, 512};//{gripper_command[0]["position"], gripper_command[1]["position"]};
+
+  gripper_action(command);
+  //DEBUG_SERIAL.print(command[0], command[1]);
   
   return true;
   }
@@ -154,9 +164,41 @@ void gripper_action(int desired_action[])
   actual_value[1]=desired_action[1];
 }
 
+// https://forum.arduino.cc/t/serial-input-basics-updated/382007
+int recvWithEndMarker() {
+    static byte ndx = 0;
+    for(int i=0; i<numChars; i++)
+    {
+      receivedChars[i] = ' ';
+    }
+    
+    char end_char;
+    char endMarker = ']';
+    char rc;
+    
+    while (Serial.available() > 0 && newData == false) {
+        rc = Serial.read();
+        receivedChars[ndx] = rc;
+        //DEBUG_SERIAL.print(rc);
+        //DEBUG_SERIAL.print(receivedChars[ndx]);
+        ndx++;
+        if (ndx >= numChars) {
+            ndx = numChars - 1;
+        }
+        end_char = rc;
+
+        if (rc == endMarker) {
+          newData = true;
+          //DEBUG_SERIAL.print(receivedChars);
+          return end_char;
+        }
+    }
+}
+
 //########################################################
 
 void setup() {
+  DEBUG_SERIAL.setTimeout(5000);
   DEBUG_SERIAL.begin(serial_bps);
   bool result = false;
 
@@ -170,27 +212,24 @@ void setup() {
 void loop() {
   if(DEBUG_SERIAL.available() > 0)
   {
-    String rx = DEBUG_SERIAL.readString();
-    rx.trim();
-    
-    if(rx == "1"){
-      digitalWrite(13, HIGH); 
-      gripper_action(grip_close);
-    }
-    else if(rx == "2") gripper_action(grip_open);
-    else if(rx == "3") gripper_action(comodin0);
-    else if(rx == "4") gripper_action(comodin1);
-    else if(rx == "5") gripper_action(comodin2);
-    else if(rx == "6") gripper_action(comodin3);
-    else if(rx == "7") gripper_action(comodin4);
-  
-  //gripper_action(grip_close);
-  //delay(500);
-  //gripper_action(grip_open);
+    char end_char = recvWithEndMarker();
 
-    JSONVar command_message = JSON.parse(rx);
+    if (newData == true) {
+      newData = false;
     
-    set_setting(command_message);
+      String rx = receivedChars;
+      Serial.print(rx);
+  
+      JSONVar GLOBAL_MESSAGE = JSON.parse(rx);
+       
+      if (JSON.typeof(GLOBAL_MESSAGE) == "undefined") {
+        Serial.println("Parsing input failed!");
+      }
+      else{
+        Serial.print(JSON.stringify(GLOBAL_MESSAGE));
+      }
+      set_setting(GLOBAL_MESSAGE);
+    }
   }
   
   delay(500);
@@ -198,9 +237,9 @@ void loop() {
   JSONVar status_message = get_status_message();
   
   String status_message_str = JSON.stringify(status_message);
-  
-  DEBUG_SERIAL.print(status_message_str);
-  DEBUG_SERIAL.print("\n");
+
+  //DEBUG_SERIAL.print(status_message_str);
+  //DEBUG_SERIAL.print("\n");
   
   delay(500);
 }
