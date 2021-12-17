@@ -3,7 +3,7 @@
 
 
 #define DXL_SERIAL Serial1
-#define DEBUG_SERIAL Serial
+#define PC_SERIAL Serial
 const uint8_t DXL_DIR_PIN = 2; // DYNAMIXEL Shield DIR PIN
 const uint8_t DXL_IDL = 1;
 const uint8_t DXL_IDR = 2;
@@ -23,8 +23,6 @@ int comodin2[2]={542,482};
 int comodin3[2]={552,472};
 int comodin4[2]={562,462};
 int comodin5[2]={572,452};
-
-JSONVar GLOBAL_MESSAGE; 
 
 unsigned long ax_bps;
 
@@ -113,8 +111,7 @@ bool set_setting(JSONVar gripper_command){
   int command[2]={gripper_command[0]["position"], gripper_command[1]["position"]};//{512, 512};//{gripper_command[0]["position"], gripper_command[1]["position"]};
 
   gripper_action(command);
-  //DEBUG_SERIAL.print(command[0], command[1]);
-  
+
   return true;
   }
 
@@ -140,15 +137,15 @@ bool set_up_dynamixel()
     dxl.setOperatingMode(DXL_IDL, OP_POSITION);
     dxl.torqueOn(DXL_IDL);
 
-    DEBUG_SERIAL.print("\n Connected to the motors! \n");
+    PC_SERIAL.print("\n Connected to the motors! \n");
       
-    DEBUG_SERIAL.print("\n Detected dynamixel baudrate:\n");
-    DEBUG_SERIAL.print(ax_bps);
+    PC_SERIAL.print("\n Detected dynamixel baudrate:\n");
+    PC_SERIAL.print(ax_bps);
 
     return result;
   }
 
-  DEBUG_SERIAL.print("\n Can not connect to the motors! \n");
+  PC_SERIAL.print("\n Can not connect to the motors! \n");
   return result;
 }
   
@@ -165,8 +162,8 @@ void gripper_action(int desired_action[])
 }
 
 // https://forum.arduino.cc/t/serial-input-basics-updated/382007
-int recvWithEndMarker() {
-    static byte ndx = 0;
+bool recvWithEndMarker() {
+    byte ndx = 0;
     for(int i=0; i<numChars; i++)
     {
       receivedChars[i] = ' ';
@@ -176,11 +173,9 @@ int recvWithEndMarker() {
     char endMarker = ']';
     char rc;
     
-    while (Serial.available() > 0 && newData == false) {
-        rc = Serial.read();
+    while (PC_SERIAL.available() > 0 && newData == false) {
+        rc = PC_SERIAL.read();
         receivedChars[ndx] = rc;
-        //DEBUG_SERIAL.print(rc);
-        //DEBUG_SERIAL.print(receivedChars[ndx]);
         ndx++;
         if (ndx >= numChars) {
             ndx = numChars - 1;
@@ -189,17 +184,17 @@ int recvWithEndMarker() {
 
         if (rc == endMarker) {
           newData = true;
-          //DEBUG_SERIAL.print(receivedChars);
-          return end_char;
+          return true;
         }
     }
+    return false;
 }
 
 //########################################################
 
 void setup() {
-  DEBUG_SERIAL.setTimeout(5000);
-  DEBUG_SERIAL.begin(serial_bps);
+  PC_SERIAL.setTimeout(5000);
+  PC_SERIAL.begin(serial_bps);
   bool result = false;
 
   while (!result)
@@ -210,25 +205,26 @@ void setup() {
 }
 
 void loop() {
-  if(DEBUG_SERIAL.available() > 0)
+  if(PC_SERIAL.available() > 0)
   {
-    char end_char = recvWithEndMarker();
+    bool is_succeeded = recvWithEndMarker();
 
     if (newData == true) {
       newData = false;
     
       String rx = receivedChars;
-      Serial.print(rx);
   
-      JSONVar GLOBAL_MESSAGE = JSON.parse(rx);
+      JSONVar message = JSON.parse(rx);
        
-      if (JSON.typeof(GLOBAL_MESSAGE) == "undefined") {
-        Serial.println("Parsing input failed!");
+      if (JSON.typeof(message) == "undefined") {
+        PC_SERIAL.println("Parsing input failed!");
+        PC_SERIAL.println("Content:");
+        PC_SERIAL.println(rx);
       }
       else{
-        Serial.print(JSON.stringify(GLOBAL_MESSAGE));
+        PC_SERIAL.print(JSON.stringify(message));
       }
-      set_setting(GLOBAL_MESSAGE);
+      set_setting(message);
     }
   }
   
@@ -237,9 +233,6 @@ void loop() {
   JSONVar status_message = get_status_message();
   
   String status_message_str = JSON.stringify(status_message);
-
-  //DEBUG_SERIAL.print(status_message_str);
-  //DEBUG_SERIAL.print("\n");
   
   delay(500);
 }
