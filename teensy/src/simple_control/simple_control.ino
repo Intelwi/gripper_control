@@ -1,4 +1,5 @@
 #include <Dynamixel2Arduino.h>
+#include <CircularBuffer.h>
 
 #define DXL_SERIAL   Serial1    
 #define DEBUG_SERIAL Serial     
@@ -12,10 +13,11 @@ const float DXL_PROTOCOL_VERSION = 1.0;
 
 /*Dynamixel Library*/
 int k=0; 
+int vel = 150;
 
 // Predefined states
 int grip_open[2]={450,574};
-int grip_close[2]={512,512};
+int grip_close[2]={522,502};
 int comodin0[2]={522,502};
 int comodin1[2]={532,492};
 int comodin2[2]={542,482};
@@ -94,41 +96,6 @@ bool set_up_dynamixel()
   return result_l & result_r;
 }
 
-
-//bool set_up_dynamixel()
-//{
-//  bool result = false;
-//  
-//  ax_bps = dxl.getPortBaud();
-//
-//  // Set Port baudrate. Should be 57600.
-//  dxl.begin(ax_bps);
-//  
-//  // Set Port Protocol Version. This has to match with DYNAMIXEL protocol version.
-//  dxl.setPortProtocolVersion(DXL_PROTOCOL_VERSION);
-//  
-//  // Get DYNAMIXEL information
-//  result = dxl.ping(DXL_IDL);
-//
-//  if (result)
-//  {
-//    // Turn off torque when configuring items in EEPROM area
-//    dxl.torqueOff(DXL_IDL);
-//    dxl.setOperatingMode(DXL_IDL, OP_POSITION);
-//    dxl.torqueOn(DXL_IDL);
-//
-//    DEBUG_SERIAL.print("\n Connected to the motors! \n");
-//      
-//    DEBUG_SERIAL.print("\n Detected dynamixel baudrate:\n");
-//    DEBUG_SERIAL.print(ax_bps);
-//
-//    return result;
-//  }
-//
-//  DEBUG_SERIAL.print("\n Can not connect to the motors! \n");
-//  return result;
-//}
-
   
 void set_gripper_goal_position(int desired_action[]){
   /* Function which sets the goal position
@@ -183,14 +150,14 @@ void display_position_and_velocity(int loop_counter = 0, bool count = false){
 void move_to_goal_and_give_feedback(int desired_action[]){
   // Goal positions for both the DYNAMIXELs
   int position_tolerance = 10;
-  for(k=1;k<=2;k++)
+  for(k=2;k>=1;k--)
   {
     dxl.setGoalPosition(k, desired_action[k-1]);
   }
   // Hardcoded for now
-  for( k=0; (abs(desired_action[0] - dxl.getPresentPosition(1)) > position_tolerance) && (abs(desired_action[1] - dxl.getPresentPosition(2)) > position_tolerance); k++ ){
-    display_all_variables(k, true);
-  }
+//  for( k=0; (abs(desired_action[0] - dxl.getPresentPosition(1)) > position_tolerance) && (abs(desired_action[1] - dxl.getPresentPosition(2)) > position_tolerance); k++ ){
+//    display_all_variables(k, true);
+//  }
 }
 
 void simple_movement(int desired_action[]){
@@ -199,10 +166,12 @@ void simple_movement(int desired_action[]){
    * overheating
    * Input:     2 element Integer array of the final positions of each dynamixel
    */
-  int sliding_window_size = 5;
-  float sliding_window[2][5];
+  int sliding_window_size = 30;
   int position_tolerance = 10;
-  int minimum_movment = 2;
+  int minimum_movment = 3;
+
+  CircularBuffer<int, 100> buffer1;
+  CircularBuffer<int, 100> buffer2;    
   
   // Goal positions for both the DYNAMIXELs
   for(int k=1;k<=2;k++)
@@ -211,26 +180,23 @@ void simple_movement(int desired_action[]){
   }
   
   // Hardcoded for now
-  // Continue monitoring till final position is reached
-  for( k=0; (abs(desired_action[0] - dxl.getPresentPosition(1)) > position_tolerance) && (abs(desired_action[1] - dxl.getPresentPosition(2)) > position_tolerance); k++ ){
-    if (k < sliding_window_size){
-      sliding_window[0][k] = dxl.getPresentPosition(1);
-      sliding_window[1][k] = dxl.getPresentPosition(2);
-    }
-    else{
-      if((abs(sliding_window[0][0] - sliding_window[0][sliding_window_size-1]) < minimum_movment) && (abs(sliding_window[1][0] - sliding_window[1][sliding_window_size-1]) < minimum_movment)){
-        desired_action[0] = dxl.getPresentPosition(1);
-        desired_action[1] = dxl.getPresentPosition(2);
-        simple_movement(desired_action);
+  // Continue monitoring till final position is reached for both the motors
+  for( k=0; (abs(desired_action[0] - dxl.getPresentPosition(1)) > position_tolerance) || (abs(desired_action[1] - dxl.getPresentPosition(2)) > position_tolerance); k++ ){
+    // Add new observations to our buffers
+    buffer1.push(dxl.getPresentPosition(1));
+    buffer2.push(dxl.getPresentPosition(2));
+
+    // Once we have sufficient number of observations, we start working with these
+    if (k > sliding_window_size){
+      if((abs(buffer1.last() - buffer1[buffer1.size() - sliding_window_size]) < minimum_movment) || (abs(buffer2.last() - buffer2[buffer2.size() - sliding_window_size]) < minimum_movment)){
+        // Add code to add some more distance to get a good grip
+        int new_desired_action[2];
+        new_desired_action[0] = dxl.getPresentPosition(1);
+        new_desired_action[1] = dxl.getPresentPosition(2);
+        DEBUG_SERIAL.println("Large Object?? I'm stopping!!! :(");
+        simple_movement(new_desired_action);
         break;
       }
-      // We left shift all the elements and update the new one
-      for(int i=0; i< sliding_window_size - 1; i++){
-          sliding_window[0][i] = sliding_window[0][i+1];
-          sliding_window[1][i] = sliding_window[1][i+1];
-      }
-      sliding_window[0][sliding_window_size-1] = dxl.getPresentPosition(1);
-      sliding_window[2][sliding_window_size-1] = dxl.getPresentPosition(2);
     }
   }
 }
@@ -264,13 +230,26 @@ void setup() {
     delay(500);
   }
   // Set default velocity
-  set_velocity(10);
+  set_velocity(75); //
+  
 }
 
 
 
 void loop() {
+//display_position();
+set_velocity(vel);
+//DEBUG_SERIAL.println(vel);
+
+//simple_movement(grip_close);
+//delay(1000);
+//simple_movement(grip_open);
+//delay(1000);
+
+
 move_to_goal_and_give_feedback(grip_close);
+delay(1000);
 move_to_goal_and_give_feedback(grip_open);
-delay(500);
+delay(1000);
+vel -= 10;
 }
