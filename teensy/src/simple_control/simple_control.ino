@@ -17,7 +17,8 @@ int vel = 150;
 
 // Predefined states
 int grip_open[2]={450,574};
-int grip_close[2]={522,502};
+int grip_close[2]={542,482};
+//int grip_close[2]={522,502};
 int comodin0[2]={522,502};
 int comodin1[2]={532,492};
 int comodin2[2]={542,482};
@@ -154,6 +155,8 @@ void move_to_goal_and_give_feedback(int desired_action[]){
   {
     dxl.setGoalPosition(k, desired_action[k-1]);
   }
+  DEBUG_SERIAL.println("Tightening grip ...");
+  
   // Hardcoded for now
 //  for( k=0; (abs(desired_action[0] - dxl.getPresentPosition(1)) > position_tolerance) && (abs(desired_action[1] - dxl.getPresentPosition(2)) > position_tolerance); k++ ){
 //    display_all_variables(k, true);
@@ -166,14 +169,35 @@ void simple_movement(int desired_action[]){
    * overheating
    * Input:     2 element Integer array of the final positions of each dynamixel
    */
-  int sliding_window_size = 30;
+
+  // We initialize some hyper-parameters, these can be converted to function args
+  int sliding_window_size = 40;
   int position_tolerance = 10;
   int minimum_movment = 3;
+  int pos_offset = 5;
 
   CircularBuffer<int, 100> buffer1;
   CircularBuffer<int, 100> buffer2;    
+
+  // We make note of the old positions of the dynamixels
+  int old_pos[2];
+  for(int id=1;id<=2;id++)
+  {
+    old_pos[id-1] = dxl.getPresentPosition(id);
+  }
+
+  // Find direction of motion of the dynamixels
+  int dir_motion[2], diff;
+  for(int id=1;id<=2;id++)
+  {
+    diff = desired_action[id-1]-old_pos[id-1];
+    if (diff != 0)
+      dir_motion[id-1] = (diff)/abs(diff);
+    else
+      dir_motion[id-1] = 0;
+  }
   
-  // Goal positions for both the DYNAMIXELs
+  // Set Goal positions for both the DYNAMIXELs
   for(int k=1;k<=2;k++)
   {
     dxl.setGoalPosition(k, desired_action[k-1]);
@@ -191,10 +215,12 @@ void simple_movement(int desired_action[]){
       if((abs(buffer1.last() - buffer1[buffer1.size() - sliding_window_size]) < minimum_movment) || (abs(buffer2.last() - buffer2[buffer2.size() - sliding_window_size]) < minimum_movment)){
         // Add code to add some more distance to get a good grip
         int new_desired_action[2];
-        new_desired_action[0] = dxl.getPresentPosition(1);
-        new_desired_action[1] = dxl.getPresentPosition(2);
+        new_desired_action[0] = dxl.getPresentPosition(1) + dir_motion[0]*(pos_offset + position_tolerance);
+        new_desired_action[1] = dxl.getPresentPosition(2) + dir_motion[1]*(pos_offset + position_tolerance);
         DEBUG_SERIAL.println("Large Object?? I'm stopping!!! :(");
-        simple_movement(new_desired_action);
+        
+        move_to_goal_and_give_feedback(new_desired_action);
+        
         break;
       }
     }
@@ -238,18 +264,23 @@ void setup() {
 
 void loop() {
 //display_position();
-set_velocity(vel);
+//set_velocity(vel);
 //DEBUG_SERIAL.println(vel);
 
-//simple_movement(grip_close);
-//delay(1000);
-//simple_movement(grip_open);
-//delay(1000);
+simple_movement(grip_open);
+delay(1000);
+simple_movement(grip_close);
+delay(5000);
+//dxl.setOperatingMode(1, OP_VELOCITY);
+//dxl.setGoalVelocity(1, 80);
+//delay(3000);
+//dxl.setGoalVelocity(1, 1024+80);
+//delay(3000);
 
 
-move_to_goal_and_give_feedback(grip_close);
-delay(1000);
-move_to_goal_and_give_feedback(grip_open);
-delay(1000);
-vel -= 10;
+//move_to_goal_and_give_feedback(grip_close);
+//delay(1000);
+//move_to_goal_and_give_feedback(grip_open);
+//delay(1000);
+//vel -= 10;
 }
