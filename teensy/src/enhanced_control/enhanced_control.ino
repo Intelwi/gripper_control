@@ -19,7 +19,7 @@ int position_tolerance = 10;  // Fixed pos tolerance
 
 // Predefined states
 int grip_open[2]={450,574};
-int grip_close[2]={542,482};
+int grip_close[2]={562,462};
 
 // To store the baudrate for DYNAMIXEL
 unsigned long ax_bps;
@@ -229,7 +229,7 @@ void move_to_goal_and_give_feedback(int desired_action[]){
   }
 }
 
-void simple_movement(int desired_action[], int sliding_window_size = 40, int position_tolerance = 5, int minimum_movment = 3, int pos_offset = 5){
+void simple_movement(int desired_action[], int sliding_window_size = 10, int position_tolerance = 5, int minimum_movment = 3, int pos_offset = 2){
   /* Function to move the grippers to a particular position. In case the grippers are
    * not able to move further due to some reason, the grippers are stopped to prevent
    * overheating
@@ -325,7 +325,7 @@ void state_machine_run()
       simple_movement(grip_open);
 
       // Simulating a condition where we recieve a command from the ros computer
-      if (random(0,9)==0){
+      if (random(0,5)==0){
         picking_object = true;
         if(picking_object){
           DEBUG_SERIAL.println("Closing the gripper");
@@ -340,6 +340,7 @@ void state_machine_run()
        * Success -> OBJECT_GRASPED
        * Fail -> OBJECT_SLIPPED (or MISSED)
       */
+      
       DEBUG_SERIAL.println("Current State = GRIPPER_CLOSE");
       simple_movement(grip_close);
       get_pos(curr_pos);
@@ -366,15 +367,15 @@ void state_machine_run()
       curr_time = millis();
       
       // ROS System command for opening should come here
-      command_recieved = random(0,15);
+      command_recieved = 1;//random(0,5);
       
-      if(command_recieved == 15){
+      if(command_recieved == 0){
         DEBUG_SERIAL.println("Command received, dropping item in 2 secs");
         state = GRIPPER_OPEN;
         picking_object = false;
         delay(2000);
       }
-      else if (last_time - curr_time > 1000){ 
+      else if (curr_time - last_time > 1000){ 
         // Keep checking if object in hand every 1 secs
         simple_movement(grip_close);
         get_pos(curr_pos);
@@ -422,7 +423,7 @@ void setup(){
   }
   
   // Set default velocity
-  set_velocity(75); //
+  set_velocity(45); //75 is too much and overcurrent occurs with the big objects
 }
  
 
