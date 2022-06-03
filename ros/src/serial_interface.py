@@ -70,11 +70,27 @@ class SerialInterface:
         ]\n'
         """
         msg_str = self.arduino.readline()
-
+        
         msg_str = msg_str.decode().strip()
         
+
         if len(msg_str) < 5 or not '{' in msg_str:
             return None
 
-        msg_json = json.loads(msg_str)
-        return msg_json
+        if '}{' not in msg_str:
+            return [json.loads(msg_str)]
+
+        msgs = msg_str.split("}{")
+        
+        for i in range(len(msgs)):
+            if '{' not in msgs[i]:
+                msgs[i] = '{' + msgs[i]
+            if '}' not in msgs[i]:
+                msgs[i] = msgs[i] + '}'
+            
+        msgs_json = []
+
+        for msg in msgs:
+            msgs_json.append(json.loads(msg))
+
+        return msgs_json

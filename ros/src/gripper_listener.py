@@ -11,36 +11,17 @@ import serial_interface
 
 def callback(data):
     command = int(data.data)
-    json_command = [
-            {
-                "id":0,
-                "current":0,
-                "torque":True,
-                "velocity":0,
-                "position":0,
-                "pwm":0,
-                "baudrate":57600
-            },
-            {
-                "id":1,
-                "current":0,
-                "torque":True,
-                "velocity":0,
-                "position":0,
-                "pwm":0,
-                "baudrate":57600
-            }
-        ]
+    json_command = {
+            "command": 0,
+    }
 
     if command == 0:
         print('Closing the gripper.')
-        json_command[0]['position'] = 1
-        json_command[1]['position'] = 1
+        json_command['command'] = 1
 
     else:
         print('Opening the gripper.')
-        json_command[0]['position'] = 450
-        json_command[1]['position'] = 574
+        json_command['command'] = 0
 
     serial_msg.send(json_command)
 
@@ -57,4 +38,4 @@ if __name__ == '__main__':
     while True:
         msg = serial_msg.receive()
         print(msg)
-        rospy.sleep(1)
+        rospy.sleep(0.1)
