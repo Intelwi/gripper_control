@@ -3,6 +3,7 @@
 #include <Dynamixel2Arduino.h>
 #include <CircularBuffer.h>
 
+/* Dynamixel library variables */
 #define DXL_SERIAL   Serial1    
 #define DEBUG_SERIAL Serial     
 const uint8_t DXL_DIR_PIN = 2;  // DYNAMIXEL Shield DIR PIN
@@ -10,19 +11,14 @@ const uint8_t DXL_IDL = 1;
 const uint8_t DXL_IDR = 2;
 const float DXL_PROTOCOL_VERSION = 1.0;
 
-/*Dynamixel Library*/
+/* Global control variables */
 int k=0; 
 int id;         // Used to cycle through dynamixel IDs
-int vel = 150;  //
 int position_tolerance = 10;  // Fixed pos tolerance
 
-
-// Predefined states
+// Predefined open and close states for the gripper
 int grip_open[2]={450,574};
 int grip_close[2]={562,462};
-
-// To store the baudrate for DYNAMIXEL
-unsigned long ax_bps;
 
 // Set Port baudrate to 9600bps.
 int serial_bps = 9600;
@@ -30,21 +26,19 @@ int serial_bps = 9600;
 // We initialize an object with an open serial connection and the DIR_PIN
 Dynamixel2Arduino dxl(DXL_SERIAL, DXL_DIR_PIN);
 
-int val = 0;
-
-enum States {GRIPPER_OPEN, GRIPPER_CLOSE, OBJECT_GRASPED, OBJECT_SLIPPED};
-//enum Sensors_enum {NONE, SENSOR_RIGHT, SENSOR_LEFT, BOTH};
-
+// To store the baudrate for DYNAMIXEL
+unsigned long ax_bps;
 
 // State machine variables
+enum States {GRIPPER_OPEN, GRIPPER_CLOSE, OBJECT_GRASPED, OBJECT_SLIPPED};
 uint8_t state = GRIPPER_OPEN;
-bool picking_object = false;    //Do I have a command to pick an object
 long int curr_time = 0, last_time = millis();
 
 
 // --------------- //
-// Setup functions //
+// Setup Functions //
 // --------------- //
+
 bool set_up_dynamixel()
 {
   /* Function to check the port baudrates, set the baudrates for communication and
@@ -53,10 +47,10 @@ bool set_up_dynamixel()
    * Returns:   bool
    *            'True' if both the dynamixels are working
    */
-  bool result_l = false;
+  bool result_l = false;  // Boolean for motor initialization
   bool result_r = false;
   
-  ax_bps = dxl.getPortBaud();
+  ax_bps = dxl.getPortBaud(); 
 
   // Set Port baudrate. Should be 57600. Initializes Serial comms with DYNAMIXEL
   dxl.begin(ax_bps);
@@ -124,21 +118,24 @@ void set_velocity(int velocity){
 // General functions //
 // ----------------- //
 
-void move_gripper_to_position(int desired_action[]){
-  /* Function which sets the goal position
+void move_gripper_to_position(int desired_action[], char message[100] = ""){
+  /* Function which sets the goal position for both the motors
    * Input:   int[array] desired_action
    *          2 element Integer array of the desired final positions of each dynamixel
    */
   for(int id=1;id<=2;id++){
     dxl.setGoalPosition(id, desired_action[id-1]);
   }
+  if (message != ""){
+    DEBUG_SERIAL.println(message);
+  }
 }
 
 bool is_close(int curr_pos[], int desired_pos[]) {
-  /* Function to write the current position of the dynamixel motors
+  /* Checks if the current position of both motors is closed to the desired target position
    * to a given array
-   * Input:     [int*]
-   *            Array pointer in which the values are stored
+   * Inputs:    int[array] curr_pos
+   *            int[array] desired_action
    */
 //  DEBUG_SERIAL.println(desired_pos[0]);
   return (abs(desired_pos[0] - curr_pos[0]) < position_tolerance) && (abs(desired_pos[1] - curr_pos[1]) < position_tolerance);
@@ -152,7 +149,6 @@ void get_pos(int *pos) {
    */
   for(int id = 1; id <= 2; id++){
     pos[id-1] = dxl.getPresentPosition(id);
-//    DEBUG_SERIAL.println();
   }
     
 }
@@ -168,7 +164,7 @@ void display_position(){
 }
 
 void display_all_variables(int loop_counter = 0, bool count = false){
-  /* Function which displays the position, velocity, current and PWN of the two Dyamixels ID 1 & 2
+  /* Function which displays the position, velocity, current and PWM of the two Dyamixels ID 1 & 2
    * Single line serial print functions result in faster execution times when compared to multiple print statements.
    * 
    * Input:     [int]   loop_counter
@@ -178,16 +174,14 @@ void display_all_variables(int loop_counter = 0, bool count = false){
    *            Enables printing a specific iteration number
    *            Set to 'fasle' by default
    */
-  if(count){
-    char buf[200];
+  char buf[200];
+  if(~count){
     sprintf(buf, "\nDynamixel motor 1:  Position: %f, Velocity: %f, Current: %f, PWM: %f\nDynamixel motor 2:  Position: %f, Velocity: %f, Current: %f, PWM: %f", dxl.getPresentPosition(1), dxl.getPresentVelocity(1), dxl.getPresentCurrent(1), dxl.getPresentPWM(1), dxl.getPresentPosition(2), dxl.getPresentVelocity(2), dxl.getPresentCurrent(2), dxl.getPresentPWM(2)); 
-    DEBUG_SERIAL.println(buf);  
   }
   else{
-    char buf[200];
     sprintf(buf, "\n Read Instance: %d Dynamixel motor 1:  Position: %f, Velocity, Current: %f, PWM: %f: %f\nDynamixel motor 2:  Position: %f, Velocity: %f, Current: %f, PWM: %f", loop_counter, dxl.getPresentPosition(1), dxl.getPresentVelocity(1), dxl.getPresentCurrent(1), dxl.getPresentPWM(1), dxl.getPresentPosition(2), dxl.getPresentVelocity(2), dxl.getPresentCurrent(2), dxl.getPresentPWM(2)); 
-    DEBUG_SERIAL.println(buf);  
-  }  
+  }
+  DEBUG_SERIAL.println(buf);  
 }   
 
 void display_position_and_velocity(int loop_counter = 0, bool count = false){
@@ -201,16 +195,14 @@ void display_position_and_velocity(int loop_counter = 0, bool count = false){
    *            Enables printing a specific iteration number
    *            Set to 'fasle' by default
    */
-  if(count){
-    char buf[150];
+  char buf[150];
+  if(~count){
     sprintf(buf, "\nDynamixel motor 1:  Position: %f, Velocity: %f\nDynamixel motor 2:  Position: %f, Velocity: %f", dxl.getPresentPosition(1), dxl.getPresentVelocity(1), dxl.getPresentPosition(2), dxl.getPresentVelocity(2)); 
-    DEBUG_SERIAL.println(buf);  
   }
   else{
-    char buf[150];
     sprintf(buf, "\n Read Instance: %d Dynamixel motor 1:  Position: %f, Velocity: %f\nDynamixel motor 2:  Position: %f, Velocity: %f", loop_counter, dxl.getPresentPosition(1), dxl.getPresentVelocity(1), dxl.getPresentPosition(2), dxl.getPresentVelocity(2)); 
-    DEBUG_SERIAL.println(buf);  
   }
+  DEBUG_SERIAL.println(buf);  
 }
 
 void move_to_goal_and_give_feedback(int desired_action[]){
@@ -222,7 +214,7 @@ void move_to_goal_and_give_feedback(int desired_action[]){
   {
     dxl.setGoalPosition(id, desired_action[id-1]);
   }
-  DEBUG_SERIAL.println("Tightening grip ...");
+  DEBUG_SERIAL.println("Moving to desired position ...");
   
   for( id=0; (abs(desired_action[0] - dxl.getPresentPosition(1)) > position_tolerance) && (abs(desired_action[1] - dxl.getPresentPosition(2)) > position_tolerance); id++ ){
     display_position_and_velocity();
@@ -238,9 +230,11 @@ void simple_movement(int desired_action[], int sliding_window_size = 10, int pos
    *            
    *            Optional/Default parameters:
    *            [int]       sliding_window_size
-   *            The approach compares the first and last elements of the sliding window, so the size controls the duration
+   *            The approach compares the first and last elements of the sliding window, so the size of the window controls
+   *            the time between the comparison of states of the gripper to see if it has moved at all.
    *            [int]       position_tolerance
-   *            This represents the amount of tolerance in the position
+   *            This represents the amount of tolerance in the position, lower values make it more precise and higher values
+   *            make it more lenient.
    *            [int]       minimum_movment
    *            This is the minimum difference in motion which should be observed so as to consider the gripper as moving
    *            [int]       pos_offset
@@ -248,8 +242,7 @@ void simple_movement(int desired_action[], int sliding_window_size = 10, int pos
    *            This number indicates the amount by which the dynamixels move to tighten the grip
    */
 
-  // We initialize some hyper-parameters, these can be converted to function args
-  
+  // Initialize buffers
   CircularBuffer<int, 100> buffer1;
   CircularBuffer<int, 100> buffer2;    
 
@@ -266,7 +259,7 @@ void simple_movement(int desired_action[], int sliding_window_size = 10, int pos
   {
     diff = desired_action[id-1]-old_pos[id-1];
     if (diff != 0)
-      dir_motion[id-1] = (diff)/abs(diff);
+      dir_motion[id-1] = (diff)/abs(diff);  // direction of motion is set to +1 or -1
     else
       dir_motion[id-1] = 0;
   }
@@ -284,7 +277,7 @@ void simple_movement(int desired_action[], int sliding_window_size = 10, int pos
     buffer2.push(dxl.getPresentPosition(2));
 
     // Once we have sufficient number of observations, we start working with these
-    if (iter_num > sliding_window_size){
+    if (iter_num > sliding_window_size){  // We check if the motors stop moving
       if((abs(buffer1.last() - buffer1[buffer1.size() - sliding_window_size]) < minimum_movment) || (abs(buffer2.last() - buffer2[buffer2.size() - sliding_window_size]) < minimum_movment)){
         // Add code to add some more distance to get a good grip
         int new_desired_action[2];
@@ -292,7 +285,7 @@ void simple_movement(int desired_action[], int sliding_window_size = 10, int pos
         new_desired_action[1] = dxl.getPresentPosition(2) + dir_motion[1]*(pos_offset + position_tolerance);
         DEBUG_SERIAL.println("Large Object?? I'm stopping!!! :(");
         
-        move_gripper_to_position(new_desired_action);
+        move_gripper_to_position(new_desired_action, "Tightening Grip ..."); // Move by a set amount to tighten the grip
         break;
       }
     }
@@ -311,7 +304,6 @@ void state_machine_run()
 
   // Add code to set custom parameters or not
   // Set or unset the variables for gripper positions, velocities etc
-  // if(SERIAL.available)
   
   switch(state)
   {
@@ -324,15 +316,11 @@ void state_machine_run()
       // We make sure that the gripper is open
       simple_movement(grip_open);
 
-      // Simulating a condition where we recieve a command from the ros computer
+      // Simulating a condition where we recieve a command from the ros computer to close the gripper
       if (random(0,5)==0){
-        picking_object = true;
-        if(picking_object){
           DEBUG_SERIAL.println("Closing the gripper");
-          // Transition to state GRIPPER_CLOSE
-          state = GRIPPER_CLOSE; 
+          state = GRIPPER_CLOSE;  // Transition to state GRIPPER_CLOSE
         }
-      }
       break;
        
     case GRIPPER_CLOSE:
@@ -352,7 +340,7 @@ void state_machine_run()
         state = GRIPPER_OPEN;
       }
       else{ 
-        DEBUG_SERIAL.println("Seems like we grasped the object");
+        DEBUG_SERIAL.println("Seems like we grasped the object successfully");
         state = OBJECT_GRASPED;  
       }
       break;
@@ -367,12 +355,11 @@ void state_machine_run()
       curr_time = millis();
       
       // ROS System command for opening should come here
-      command_recieved = 1;//random(0,5);
+      command_recieved = random(0,5);//1;
       
       if(command_recieved == 0){
         DEBUG_SERIAL.println("Command received, dropping item in 2 secs");
         state = GRIPPER_OPEN;
-        picking_object = false;
         delay(2000);
       }
       else if (curr_time - last_time > 1000){ 
@@ -401,7 +388,7 @@ void state_machine_run()
       // Sends an error message to ROS system and transitions to GRIPPER_OPEN
       DEBUG_SERIAL.println("Current State = OBJECT_SLIPPED");
       state = GRIPPER_OPEN;
-      picking_object = false;
+      DEBUG_SERIAL.println("Resetting state to default");
       break;
 
   }
@@ -424,8 +411,7 @@ void setup(){
   
   // Set default velocity
   set_velocity(45); //75 is too much and overcurrent occurs with the big objects
-}
- 
+} 
 
 void loop(){
   state_machine_run();
