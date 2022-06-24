@@ -14,7 +14,7 @@ class GripperController:
     component_name = 'gripper_controller'
 
     def __init__(self):
-        rospy.init_node(component_name, anonymous=True)
+        rospy.init_node(self.component_name, anonymous=True)
         self.serial_msg = serial_interface.SerialInterface(9600, 1, "239A")
         self.serial_msg.open_port()
 
@@ -22,7 +22,7 @@ class GripperController:
         self.cmd_listener = rospy.Subscriber(self.gripper_command_topic, String, self.callback)
 
         self.gripper_feedback_topic = rospy.get_param('~gripper_feedback_topic', '/arm_1/gripper_feedback')
-        self.feedback_publisher = rospy.Publisher(self.gripper_feedback_topic, String)
+        self.feedback_publisher = rospy.Publisher(self.gripper_feedback_topic, String, queue_size=1, latch=True)
 
     def callback(self, data):
         """Callback for receiving gripper command
@@ -47,8 +47,11 @@ class GripperController:
     def handle_msg(self):
         """Function for receiving feedback from serial and publishing to ros
         """
-        msg = self.serial_msg.receive()
-        self.feedback_publisher.pub(msg)
+        msgs = self.serial_msg.receive()
+        if msgs is not None:
+            for msg in msgs:
+                self.feedback_publisher.publish(str(msg))
+                rospy.sleep(0.1)
 
 if __name__ == '__main__':
 
