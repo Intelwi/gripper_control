@@ -1,45 +1,55 @@
-"""
-This module contains a component that communicates with
-the particular Teensy board and sends the message via
-serial port with specified baudrate, timeout and board pid.
-"""
 import serial
 import json
+import rospy
 
 class SerialInterface:
-    """
-    Initialize class with baudrate, timeout, and pid of arduino board
-    which is fixed in our case pid = 239A.
-    """
+    
     def __init__(self, baud, timeout, pid):
+        """This module contains a component that communicates with the particular Teensy board and sends the message via 
+            serial port with specified baudrate, timeout and pid of the microcontroller board.
+        
+            Keyword arguments:
+            @param baud -- baudrate of the microcontroller
+            @param timeout -- timeout after which communication with the microcontroller is stopped
+            @param pid -- pid of the microcontroller, which is fixed to 239A.
+        """
         self.baud = baud
         self.timeout = timeout
         self.pid = pid
+        self.port = '/dev/ttyACM0'
     """
-    Detect the arduino board and initialize the serial module from pyserial
+    
 
     """
     def open_port(self):
-        port = '/dev/ttyACM0'
-        
+        """Function for detecting the microcontroller board and initializing the serial module from pyserial
+        """
         try:
-            self.arduino = serial.Serial(port, self.baud, timeout=self.timeout)
+            self.board = serial.Serial(self.port, self.baud, timeout=self.timeout)
         except Exception as a:
-            print(a)
-            print('Please check the port {}'.format(port))
+            rospy.logerr(a)
+            rospy.logerr('Please check the port {}'.format(self.port))
 
-    """
-    Send the string message framework to arduino
-
-    """
     def send(self, message):
-        self.arduino.flushInput()
+        """
+        Function for sending the string message framework to the microcontroller.
+            
+            Keyword arguments:
+            @param message -- message to send to the microcontroller
+        """
+        self.board.flushInput()
         message_str = json.dumps(message)
         message_str = message_str
-        self.arduino.write(bytes(message_str.encode()))
+        self.board.write(bytes(message_str.encode()))
 
     def receive(self):
-        msg_str = self.arduino.readline()
+        """
+        Function for receiving the string message from the microcontroller.
+
+        Return:
+            Message from the microcontroller in the json format.
+        """
+        msg_str = self.board.readline()
         
         msg_str = msg_str.decode().strip()
         
