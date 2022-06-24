@@ -56,7 +56,7 @@ bool set_up_dynamixel()
   bool result_l = false;
   bool result_r = false;
   
-  ax_bps = dxl.getPortBaud();
+  ax_bps = 1000000; //dxl.getPortBaud();
 
   // Set Port baudrate. Should be 57600. Initializes Serial comms with DYNAMIXEL
   dxl.begin(ax_bps);
